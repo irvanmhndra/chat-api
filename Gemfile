@@ -25,6 +25,10 @@ gem "oj"           # Fast JSON parser
 gem "rack-cors"
 gem "pagy"
 
+# API Documentation
+gem 'rswag-api'    # Serves OpenAPI/Swagger JSON spec
+gem 'rswag-ui'     # Swagger UI for interactive API docs
+
 # Security & Rate Limiting
 gem "rack-attack"  # Rate limiting & throttling (prevent spam, brute force, DDoS)
 
@@ -57,6 +61,7 @@ group :development, :test do
   gem "faker"
   gem "pry-rails"
   gem "bullet"  # N+1 detection
+  gem 'rswag-specs'  # RSpec integration for API documentation
 
   # Code Quality & Linting
   gem "rubocop", require: false

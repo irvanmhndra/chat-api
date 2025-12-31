@@ -581,15 +581,36 @@ echo "/spec/examples.txt" >> .gitignore
 
 Rswag generates interactive Swagger/OpenAPI documentation from RSpec tests.
 
-```bash
-# Install Rswag
-rails generate rswag:install
+**Install Rswag (3 separate generators):**
 
-# This creates:
-# - config/initializers/rswag_api.rb
-# - config/initializers/rswag_ui.rb
-# - spec/swagger_helper.rb
-# - swagger/v1/swagger.yaml
+```bash
+# 1. Install API engine (serves OpenAPI spec)
+rails generate rswag:api:install
+
+# 2. Install UI engine (Swagger UI interface)
+rails generate rswag:ui:install
+
+# 3. Install specs (RSpec integration)
+rails generate rswag:specs:install
+
+# Or run all three at once:
+rails generate rswag:api:install && \
+rails generate rswag:ui:install && \
+rails generate rswag:specs:install
+```
+
+**This creates:**
+- `config/initializers/rswag_api.rb` - API engine config
+- `config/initializers/rswag_ui.rb` - Swagger UI config
+- `spec/swagger_helper.rb` - Main Swagger configuration
+- Adds routes to `config/routes.rb`
+
+**Optional - Silence deprecation warning:**
+
+If you see a Thor deprecation warning, you can silence it:
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export THOR_SILENCE_DEPRECATION=1
 ```
 
 **Configure Rswag:**
@@ -604,9 +625,11 @@ code spec/swagger_helper.rb
 require 'rails_helper'
 
 RSpec.configure do |config|
-  config.swagger_root = Rails.root.join('swagger').to_s
+  # Specify where to output the generated swagger files
+  config.openapi_root = Rails.root.join('swagger').to_s
 
-  config.swagger_docs = {
+  # Define one or more Swagger documents
+  config.openapi_specs = {
     'v1/swagger.yaml' => {
       openapi: '3.0.1',
       info: {
@@ -618,27 +641,28 @@ RSpec.configure do |config|
       servers: [
         {
           url: 'http://localhost:3000',
-          variables: {
-            defaultHost: {
-              default: 'localhost:3000'
-            }
-          }
+          description: 'Development server'
+        },
+        {
+          url: 'https://your-production-url.com',
+          description: 'Production server (update this later)'
         }
       ],
       components: {
         securitySchemes: {
-          Bearer: {
+          bearer_auth: {
             type: :http,
             scheme: :bearer,
             bearerFormat: 'JWT',
-            description: 'JWT token for authentication'
+            description: 'JWT token for authentication. Format: Bearer <token>'
           }
         }
       }
     }
   }
 
-  config.swagger_format = :yaml
+  # Specify the format of the output Swagger file
+  config.openapi_format = :yaml
 end
 ```
 
@@ -688,6 +712,9 @@ end
 **Generate documentation:**
 ```bash
 # Generate Swagger YAML from specs
+rails rswag:specs:swaggerize
+
+# Or using rake (both work the same)
 rake rswag:specs:swaggerize
 
 # Expected output:
