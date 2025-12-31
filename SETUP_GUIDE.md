@@ -432,7 +432,10 @@ bundle exec rspec
 code spec/rails_helper.rb
 ```
 
-**Add at the bottom (before `RSpec.configure`):**
+**Add Shoulda Matchers and FactoryBot configuration:**
+
+Add this after the `ActiveRecord::Migration.maintain_test_schema!` block:
+
 ```ruby
 # Shoulda Matchers configuration
 Shoulda::Matchers.configure do |config|
@@ -442,22 +445,134 @@ Shoulda::Matchers.configure do |config|
   end
 end
 
-# Database Cleaner configuration
+# FactoryBot configuration
 RSpec.configure do |config|
-  config.before(:suite) do
-    DatabaseCleaner.strategy = :transaction
-    DatabaseCleaner.clean_with(:truncation)
-  end
-
-  config.around(:each) do |example|
-    DatabaseCleaner.cleaning do
-      example.run
-    end
-  end
+  config.include FactoryBot::Syntax::Methods
 end
 ```
 
-### Step 2.3: Setup Rswag (API Documentation)
+**Important:** Do NOT add DatabaseCleaner configuration. Rails transactional fixtures (already enabled by default) are simpler and faster for API-only apps.
+
+The default `config.use_transactional_fixtures = true` in the main RSpec.configure block is perfect for our needs.
+
+**Add SimpleCov to spec/spec_helper.rb:**
+```bash
+code spec/spec_helper.rb
+```
+
+**Add at the very top (line 1):**
+```ruby
+# SimpleCov must be loaded before application code
+require 'simplecov'
+SimpleCov.start 'rails' do
+  add_filter '/spec/'
+  add_filter '/config/'
+  add_filter '/vendor/'
+end
+```
+
+**Uncomment useful RSpec options:**
+
+In `spec/spec_helper.rb`, find the section with `=begin` and `=end` (around line 49-93), and remove the `=begin` and `=end` lines to enable:
+- Focus on specific tests (`:focus` tag)
+- Test failure persistence
+- Monkey patching prevention
+- Better output for single files
+- Slow test profiling
+- Random test order
+
+Or simply delete lines with `=begin` and `=end` to uncomment all recommended RSpec options.
+
+**Support files auto-loading (optional):**
+
+Keep the support files line commented for now:
+```ruby
+# Uncomment this when you create spec/support/ directory:
+# Rails.root.glob('spec/support/**/*.rb').sort_by(&:to_s).each { |f| require f }
+```
+
+When you create support files later, uncomment this line.
+
+### Step 2.3: RSpec Directory Structure (YAGNI Approach)
+
+**Important:** Do NOT manually create spec subdirectories (models/, requests/, etc.). Rails generators will create them automatically as needed.
+
+**Why YAGNI (You Ain't Gonna Need It)?**
+- ✅ Cleaner repository (no empty directories)
+- ✅ Only create what you actually use
+- ✅ Rails generators handle directory creation
+- ✅ No need for `.keep` files
+
+**How it works:**
+
+```bash
+# Generate model → auto-creates spec/models/ and spec/factories/
+rails generate model User email:string username:string
+# Creates:
+#   spec/models/user_spec.rb
+#   spec/factories/users.rb
+
+# Generate request spec → auto-creates spec/requests/
+rails generate rspec:request api/v1/users
+# Creates:
+#   spec/requests/api/v1/users_spec.rb
+
+# Manual creation only for custom directories (when needed)
+mkdir -p spec/services
+touch spec/services/message_service_spec.rb
+```
+
+**Available RSpec generators:**
+```bash
+rails generate rspec:model User          # Model + factory
+rails generate rspec:request Users       # API request specs
+rails generate rspec:controller Users    # Controller specs
+rails generate rspec:job NotificationJob # Job specs
+rails generate rspec:mailer UserMailer   # Mailer specs
+```
+
+**After cloning the repo:**
+Someone cloning this repo just needs:
+```bash
+bundle install
+rails db:setup
+bundle exec rspec  # Should show "0 examples, 0 failures"
+```
+
+Directories will appear as they develop features. No manual setup needed!
+
+**📚 For complete Rails generator reference:**
+See **[RAILS_GENERATORS_GUIDE.md](RAILS_GENERATORS_GUIDE.md)** for comprehensive examples of:
+- Model, migration, controller generators
+- Background jobs, mailers, channels
+- Database commands and workflows
+- 20+ Chat API specific examples
+- Tips & tricks to maximize productivity
+
+### Step 2.4: Verify RSpec Setup
+
+```bash
+# Run RSpec (should work without errors)
+bundle exec rspec
+
+# Expected output:
+# 0 examples, 0 failures
+
+# SimpleCov will create coverage/ directory after first run
+ls coverage/
+# Open coverage report
+open coverage/index.html  # macOS
+# or
+xdg-open coverage/index.html  # Linux
+```
+
+**Add to .gitignore:**
+```bash
+echo "/coverage/" >> .gitignore
+echo "/spec/examples.txt" >> .gitignore
+```
+
+### Step 2.5: Setup Rswag (API Documentation)
 
 Rswag generates interactive Swagger/OpenAPI documentation from RSpec tests.
 
@@ -590,6 +705,39 @@ Rails.application.routes.draw do
   # ... other routes ...
 end
 ```
+
+---
+
+## Phase 2 Summary: What You Have Now
+
+After completing Phase 2, your RSpec setup includes:
+
+**✅ Configured:**
+- RSpec with Rails integration
+- SimpleCov for code coverage
+- FactoryBot for test data (`create(:user)` syntax)
+- Shoulda Matchers for Rails validations/associations
+- Rails transactional fixtures (fast, simple)
+- Useful RSpec options (focus, randomization, profiling)
+- Rswag for API documentation
+
+**✅ What Works:**
+```bash
+bundle exec rspec                    # Run all tests
+bundle exec rspec --tag focus        # Run focused tests
+bundle exec rspec --only-failures    # Re-run failures
+bundle exec rspec --profile          # Show slowest tests
+open coverage/index.html             # View code coverage
+open http://localhost:3000/api-docs  # View API docs
+```
+
+**✅ YAGNI Approach:**
+- No empty directories (created by generators as needed)
+- Clean repository
+- Rails generators auto-create spec subdirectories
+
+**✅ For New Developers:**
+Just `bundle install` + `rails db:setup` + `bundle exec rspec` - everything works!
 
 ---
 
