@@ -32,4 +32,8 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+# RSpec & test coverage
+/spec/examples.txt
+/coverage/
+
 .env
