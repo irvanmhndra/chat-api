@@ -232,6 +232,10 @@ gem "oj"           # Fast JSON parser
 gem "rack-cors"
 gem "pagy"
 
+# API Documentation
+gem 'rswag-api'    # Serves OpenAPI/Swagger JSON spec
+gem 'rswag-ui'     # Swagger UI for interactive API docs
+
 # Security & Rate Limiting
 gem "rack-attack"  # Rate limiting & throttling (prevent spam, brute force, DDoS)
 
@@ -264,6 +268,7 @@ group :development, :test do
   gem "faker"
   gem "pry-rails"
   gem "bullet"  # N+1 detection
+  gem 'rswag-specs'  # RSpec integration for API documentation
 
   # Code Quality & Linting
   gem "rubocop", require: false
@@ -705,6 +710,18 @@ Rails.application.routes.draw do
   # ... other routes ...
 end
 ```
+
+**Add to .gitignore (optional):**
+```bash
+# Ignore auto-generated swagger docs (or commit them to version control)
+echo "/swagger" >> .gitignore
+```
+
+**Note:** You can choose to either:
+- **Ignore `/swagger`** - Regenerate docs on each deployment
+- **Commit `/swagger`** - Version control your API documentation
+
+Most teams **commit swagger files** so the API docs are always in sync with the codebase.
 
 ---
 
