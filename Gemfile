@@ -35,8 +35,10 @@ gem "rack-attack"  # Rate limiting & throttling (prevent spam, brute force, DDoS
 # Environment & Configuration
 gem "dotenv-rails"  # Load environment variables from .env file
 
-# Logging
-gem "lograge"  # Clean, structured logging (single-line logs)
+# Logging & Error Tracking
+gem "lograge"         # Clean, structured logging (single-line logs)
+gem "sentry-ruby"     # Error tracking & monitoring
+gem "sentry-rails"    # Rails integration for Sentry
 
 # Feature Flags (Trunk-Based Development)
 gem "flipper"

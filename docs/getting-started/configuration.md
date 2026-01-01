@@ -415,14 +415,21 @@ end
 code config/routes.rb
 ```
 
-**Replace with:**
+**Add API routes (keep existing Rswag routes!):**
+
+The file already has Rswag routes mounted. Just **add** the API namespace:
+
 ```ruby
 # config/routes.rb
 Rails.application.routes.draw do
-  # Health check endpoint
+  # Rswag API Documentation (already exists - don't remove!)
+  mount Rswag::Ui::Engine => '/api-docs'
+  mount Rswag::Api::Engine => '/api-docs'
+
+  # Health check endpoint (already exists)
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # API routes
+  # API routes (ADD THIS)
   namespace :api do
     namespace :v1 do
       # Authentication routes (will be created later)
@@ -440,6 +447,8 @@ Rails.application.routes.draw do
   end
 end
 ```
+
+**Note:** More routes will be added in later steps (Flipper UI, ActiveAdmin).
 
 ### Step 6.3: Create Test Endpoint
 
@@ -603,14 +612,18 @@ Flipper.preload_all
 code config/routes.rb
 ```
 
-**Add Flipper UI route:**
+**Add Flipper UI route to your existing routes.rb:**
 ```ruby
 # config/routes.rb
 Rails.application.routes.draw do
+  # Rswag API Documentation
+  mount Rswag::Ui::Engine => '/api-docs'
+  mount Rswag::Api::Engine => '/api-docs'
+
   # Health check endpoint
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # Flipper UI (for development - add authentication in production!)
+  # Flipper UI (ADD THIS - for development only)
   if Rails.env.development?
     mount Flipper::UI.app(Flipper) => '/flipper'
   end
@@ -1163,6 +1176,358 @@ config.lograge.logger = ActiveSupport::Logger.new("#{Rails.root}/log/lograge.log
 
 # Or send to stdout for Docker/Kubernetes
 config.lograge.logger = ActiveSupport::Logger.new($stdout)
+```
+
+---
+
+## Phase 8: Error Handling & Observability
+
+Industry-standard error handling with proper 4xx/5xx separation, structured error responses, and production error tracking.
+
+### Why Proper Error Handling Matters
+
+**Observability Goals:**
+- 4xx errors (client mistakes) → Don't trigger alerts
+- 5xx errors (server issues) → Trigger alerts immediately
+- Simple Grafana query: `http_status=~"5.."` to monitor application health
+- Structured error responses for API consumers
+
+### Step 8.1: Understand the Error Handling Strategy
+
+**The base_controller already implements comprehensive error handling** (configured in Step 6.1).
+
+**Error Categories:**
+
+| Status | Type | Description | Log Level | Alert? |
+|--------|------|-------------|-----------|--------|
+| 400 | `bad_request` | Missing/invalid parameters | info | No |
+| 401 | `unauthorized` | Not authenticated | info | No |
+| 403 | `forbidden` | Not authorized (Pundit) | info | No |
+| 404 | `not_found` | Resource doesn't exist | info | No |
+| 409 | `conflict` | Duplicate resource | info | No |
+| 422 | `validation_error` | Validation failed | info | No |
+| 429 | `rate_limit_exceeded` | Too many requests | warn | No |
+| 500 | `internal_error` | Unexpected exception | error | **Yes** |
+| 503 | `service_unavailable` | Service down | error | **Yes** |
+
+**Error Response Format:**
+
+All errors return consistent JSON:
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "message": "Validation failed",
+    "details": {
+      "email": ["can't be blank", "is invalid"],
+      "password": ["is too short (minimum is 8 characters)"]
+    },
+    "request_id": "abc-123-def-456",
+    "timestamp": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+**Environment-Aware Security:**
+
+| Environment | 4xx Errors | 5xx Errors |
+|-------------|------------|------------|
+| Development | Full details + validation errors | Full details + stack trace |
+| Production | Full details + validation errors | Generic message only (security) |
+
+**Example - Development 500 error:**
+```json
+{
+  "error": {
+    "type": "internal_error",
+    "message": "NoMethodError: undefined method `name' for nil",
+    "details": {
+      "exception": "NoMethodError",
+      "backtrace": ["app/controllers/...", "..."]
+    },
+    "request_id": "abc-123"
+  }
+}
+```
+
+**Example - Production 500 error:**
+```json
+{
+  "error": {
+    "type": "internal_error",
+    "message": "An unexpected error occurred. Please contact support with request_id: abc-123",
+    "request_id": "abc-123",
+    "timestamp": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+### Step 8.2: Setup Sentry (Error Tracking)
+
+Sentry automatically captures 5xx errors with full context for investigation.
+
+**Install Sentry gems:**
+```bash
+# Already added to Gemfile
+# gem "sentry-ruby"
+# gem "sentry-rails"
+
+# Install gems
+bundle install
+```
+
+**Configure Sentry:**
+
+The initializer is already created at `config/initializers/sentry.rb`.
+
+**Get Sentry DSN:**
+
+1. Create free account: https://sentry.io/signup/
+2. Create new project → Select "Rails"
+3. Copy your DSN (looks like: `https://abc123@o123.ingest.sentry.io/456`)
+
+**Add to .env:**
+```bash
+# Edit .env
+code .env
+```
+
+**Add Sentry configuration:**
+```bash
+# ============================================
+# Error Tracking (Sentry)
+# ============================================
+# Get your DSN from: https://sentry.io/settings/[org]/projects/[project]/keys/
+# Only needed for production/staging (development errors are logged locally)
+SENTRY_DSN=https://your-sentry-dsn-here
+SENTRY_TRACES_SAMPLE_RATE=0.1  # Performance monitoring: 0.1 = 10%
+```
+
+**For development, you can skip Sentry** - it only runs in production/staging (configured in initializer).
+
+### Step 8.3: Test Error Handling
+
+**Test validation error (422):**
+```bash
+# Start Rails server
+rails s
+
+# Test validation error (will be implemented when models exist)
+# For now, test with ping controller
+```
+
+**Test not found error (404):**
+```bash
+# Trigger 404 error
+curl http://localhost:3000/api/v1/users/99999
+
+# Expected response:
+{
+  "error": {
+    "type": "not_found",
+    "message": "Couldn't find User with 'id'=99999",
+    "request_id": "abc-123",
+    "timestamp": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+**Test internal error (500):**
+
+Create a test endpoint that raises an error:
+
+```ruby
+# app/controllers/api/v1/ping_controller.rb
+def index
+  # Uncomment to test 500 error
+  # raise StandardError, "Test error for Sentry"
+
+  render_success({
+    message: 'pong',
+    timestamp: Time.current,
+    version: 'v1'
+  })
+end
+```
+
+```bash
+# Trigger 500 error
+curl http://localhost:3000/api/v1/ping
+
+# Expected response (development):
+{
+  "error": {
+    "type": "internal_error",
+    "message": "StandardError: Test error for Sentry",
+    "details": {
+      "exception": "StandardError",
+      "backtrace": ["..."]
+    },
+    "request_id": "abc-123"
+  }
+}
+
+# Check logs - should see:
+# [INTERNAL ERROR] StandardError: Test error for Sentry | Request ID: abc-123 ...
+```
+
+### Step 8.4: Grafana Alert Configuration (Production)
+
+With this error handling, you can set up simple Grafana alerts:
+
+**Alert on 5xx errors only:**
+```promql
+# Prometheus/Grafana query
+rate(http_requests_total{status=~"5.."}[5m]) > 0
+
+# Alert when ANY 5xx error occurs in last 5 minutes
+```
+
+**Why this works:**
+- 4xx errors (client mistakes) are logged as `info` → Don't trigger alerts
+- 5xx errors (server issues) are logged as `error` → Trigger alerts
+- Clean separation, no false alarms
+
+**Log-based alert (alternative):**
+```
+# Alert on error logs containing "[INTERNAL ERROR]"
+source="rails" "[INTERNAL ERROR]"
+```
+
+### Step 8.5: Error Handling Best Practices
+
+**DO:**
+- ✅ Always include `request_id` in error responses (for support)
+- ✅ Use structured error types (`validation_error`, not just message)
+- ✅ Show detailed validation errors for 4xx (helps API consumers)
+- ✅ Hide internal details for 5xx in production (security)
+- ✅ Log 4xx as info, 5xx as error (proper alerting)
+- ✅ Send 5xx errors to Sentry (for investigation)
+
+**DON'T:**
+- ❌ Don't return stack traces in production (security risk)
+- ❌ Don't alert on 4xx errors (false alarms)
+- ❌ Don't use generic error messages (hard to debug)
+- ❌ Don't skip `request_id` (makes support impossible)
+- ❌ Don't log sensitive data (passwords, tokens, credit cards)
+
+### Step 8.6: Using Error Handling in Controllers
+
+**The base_controller handles most errors automatically.** You rarely need to manually render errors.
+
+**Automatic handling examples:**
+
+```ruby
+# app/controllers/api/v1/users_controller.rb
+class Api::V1::UsersController < BaseController
+  def show
+    # Automatically returns 404 if not found
+    user = User.find(params[:id])
+    render_success(UserBlueprint.render_as_hash(user))
+  end
+
+  def create
+    # Automatically returns 422 if validation fails
+    user = User.create!(user_params)
+    render_success(UserBlueprint.render_as_hash(user), status: :created)
+  end
+
+  def update
+    user = User.find(params[:id])
+    # Automatically returns 422 if validation fails
+    user.update!(user_params)
+    render_success(UserBlueprint.render_as_hash(user))
+  end
+
+  private
+
+  def user_params
+    # Automatically returns 400 if required params missing
+    params.require(:user).permit(:email, :username, :display_name)
+  end
+end
+```
+
+**Manual error handling (rare):**
+
+```ruby
+# Only use when you need custom error handling
+def custom_action
+  if some_business_logic_fails
+    render_error(
+      type: 'business_logic_error',
+      message: 'Cannot perform action because...',
+      status: :unprocessable_entity
+    )
+    return
+  end
+
+  # Success case
+  render_success(data)
+end
+```
+
+### Step 8.7: Adding Custom Error Handlers
+
+**When you add authentication (JWT):**
+
+Uncomment in `app/controllers/api/v1/base_controller.rb`:
+
+```ruby
+# Add to rescue_from declarations
+rescue_from JWT::DecodeError, with: :handle_unauthorized
+rescue_from JWT::ExpiredSignature, with: :handle_unauthorized
+```
+
+**When you add authorization (Pundit):**
+
+Uncomment in `app/controllers/api/v1/base_controller.rb`:
+
+```ruby
+# Add to rescue_from declarations
+rescue_from Pundit::NotAuthorizedError, with: :handle_forbidden
+```
+
+**When you add rate limiting:**
+
+Update `config/initializers/rack_attack.rb` to return proper error format:
+
+```ruby
+# Already configured - returns:
+{
+  "error": {
+    "type": "rate_limit_exceeded",
+    "message": "Too many requests. Please try again later.",
+    "retry_after": 60,
+    "request_id": "abc-123"
+  }
+}
+```
+
+### Step 8.8: Monitoring in Production
+
+**What to monitor:**
+
+1. **Error rate:** Count of 5xx responses
+2. **Error types:** Group by `error.type`
+3. **Request IDs:** Track specific user issues
+4. **Performance:** Response times (Sentry captures this)
+
+**Sentry Dashboard shows:**
+- Error frequency graph
+- Affected user count
+- Stack traces with context
+- Breadcrumbs (user actions leading to error)
+- Release versions (which deploy caused the error)
+
+**Example Sentry alert:**
+```
+Alert: 5xx Error Rate > 1%
+Project: chat-api
+Error: NoMethodError in UsersController#show
+Affected users: 15
+First seen: 2 minutes ago
 ```
 
 ---
