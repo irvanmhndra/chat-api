@@ -6,37 +6,290 @@ Advanced configuration for CORS, Redis, Sidekiq, API structure, security, and mo
 
 ---
 
-## Phase 4: Configure CORS
+## Phase 4: Configure CORS (Trunk-Based Development)
 
-### Step 4.1: Configure CORS for API
+CORS (Cross-Origin Resource Sharing) allows your frontend to communicate with your Rails API. We use environment variables for configuration to support Trunk-Based Development.
+
+**What is CORS?**
+- Browser security mechanism that controls which domains can access your API
+- Without CORS, your React/Vue/Angular frontend can't call your Rails API
+- Required for any API consumed by web browsers
+
+### Step 4.1: Create CORS Initializer
 
 ```bash
 # Edit config/initializers/cors.rb
 code config/initializers/cors.rb
 ```
 
-**Replace with:**
+**Replace with simplified environment-based configuration:**
 ```ruby
 # config/initializers/cors.rb
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    # Development: allow all origins
-    origins '*'  # CHANGE in production to specific domains!
+    # Read allowed origins from environment variable
+    # Supports multiple origins separated by comma
+    allowed_origins = ENV.fetch('CORS_ORIGINS', '').split(',').map(&:strip)
 
-    resource '*',
-      headers: :any,
-      methods: [:get, :post, :put, :patch, :delete, :options, :head],
-      expose: ['Authorization'],
-      max_age: 600
+    # Fallback to wildcard in development if not configured
+    if allowed_origins.empty?
+      if Rails.env.development?
+        allowed_origins = '*'
+        Rails.logger.info "CORS: Using wildcard (*) - development mode"
+      else
+        # Production requires explicit configuration
+        raise "CORS_ORIGINS environment variable is required in #{Rails.env} environment"
+      end
+    else
+      Rails.logger.info "CORS: Allowed origins - #{allowed_origins.join(', ')}"
+    end
+
+    origins allowed_origins
+
+    # Hardcoded settings (rarely change, simplifies configuration)
+    resource '/api/*',
+      headers: %w[Authorization Content-Type Accept X-Requested-With],
+      methods: %i[get post put patch delete options head],
+      expose: %w[Authorization X-Total-Count X-Page],
+      credentials: true,
+      max_age: 86400  # 24 hours
   end
 end
 ```
 
-**Note:** For production, change `origins '*'` to specific domains:
-```ruby
-# Production example:
-origins 'https://your-frontend-app.com', 'https://mobile.your-app.com'
+**Why simplified?**
+- ✅ Only `CORS_ORIGINS` varies between environments
+- ✅ Other settings (headers, methods, etc.) rarely change
+- ✅ Easier to understand and maintain
+- ✅ Less configuration to manage
+- ✅ Still follows 12-factor app best practices
+
+### Step 4.2: Create CORS Validator (Optional but Recommended)
+
+```bash
+# Create validator
+touch config/initializers/cors_validator.rb
+code config/initializers/cors_validator.rb
 ```
+
+**Add validation:**
+```ruby
+# config/initializers/cors_validator.rb
+Rails.application.config.after_initialize do
+  # Skip validation in test environment
+  next if Rails.env.test?
+
+  cors_origins = ENV.fetch('CORS_ORIGINS', '')
+
+  # Validate in production
+  if Rails.env.production?
+    if cors_origins.blank?
+      Rails.logger.error "❌ CORS ERROR: CORS_ORIGINS is not configured for production!"
+      raise "CORS_ORIGINS environment variable is required in production"
+    end
+
+    if cors_origins.include?('*')
+      Rails.logger.error "❌ CORS ERROR: Wildcard (*) is not allowed in production!"
+      raise "CORS_ORIGINS cannot use wildcard (*) in production"
+    end
+
+    if cors_origins.include?('localhost')
+      Rails.logger.warn "⚠️  CORS WARNING: localhost detected in production CORS_ORIGINS"
+    end
+
+    Rails.logger.info "✅ CORS: Configured for #{cors_origins.split(',').count} origin(s)"
+  end
+
+  # Info in development
+  if Rails.env.development?
+    if cors_origins.blank?
+      Rails.logger.info "ℹ️  CORS: Using wildcard (*) for development (CORS_ORIGINS not set)"
+    else
+      Rails.logger.info "✅ CORS: Configured for #{cors_origins.split(',').count} origin(s)"
+    end
+  end
+end
+```
+
+### Step 4.3: Configure Environment Variables
+
+**Add to .env file:**
+```bash
+# Edit .env
+code .env
+```
+
+**Add CORS configuration:**
+```bash
+# ============================================
+# CORS Configuration
+# ============================================
+# Comma-separated list of allowed origins
+# Development: Use localhost ports where your frontend runs (React, Vue, etc.)
+# Example: React (Vite) runs on 5173, Create React App on 3000
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:8080
+```
+
+**That's it! Just one environment variable.**
+
+All other CORS settings (headers, methods, credentials) are hardcoded in the initializer because they rarely change.
+
+### Step 4.4: Update .env.example
+
+**Add to .env.example:**
+```bash
+# Edit .env.example
+code .env.example
+```
+
+**Add CORS section:**
+```bash
+# ============================================
+# CORS Configuration
+# ============================================
+# Comma-separated list of allowed origins
+# Development: localhost with various ports (React Vite: 5173, CRA: 3000, etc.)
+# Staging: https://staging.myapp.com
+# Production: https://myapp.com,https://www.myapp.com
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+```
+
+### Step 4.5: Environment-Specific Configuration
+
+**For different environments, set CORS_ORIGINS:**
+
+**Development (.env):**
+```bash
+# Local development - allow multiple localhost ports
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:8080,http://127.0.0.1:5173
+```
+
+**Staging (hosting platform environment variables):**
+```bash
+# Staging environment - your staging frontend domain(s)
+CORS_ORIGINS=https://staging.myapp.com,https://staging-mobile.myapp.com
+```
+
+**Production (hosting platform environment variables):**
+```bash
+# Production - only production frontend domain(s)
+CORS_ORIGINS=https://myapp.com,https://www.myapp.com,https://mobile.myapp.com
+```
+
+**Common frontend frameworks and their default ports:**
+- React (Vite): `http://localhost:5173`
+- React (Create React App): `http://localhost:3000`
+- Vue (Vite): `http://localhost:5173`
+- Angular: `http://localhost:4200`
+- Next.js: `http://localhost:3000`
+- Nuxt.js: `http://localhost:3000`
+
+### Step 4.6: Test CORS Configuration
+
+**Start Rails server:**
+```bash
+rails s
+```
+
+**Test CORS with curl:**
+```bash
+# Test preflight request
+curl -H "Origin: http://localhost:5173" \
+     -H "Access-Control-Request-Method: POST" \
+     -H "Access-Control-Request-Headers: Authorization" \
+     -X OPTIONS \
+     -v \
+     http://localhost:3000/api/v1/ping
+
+# Should return CORS headers:
+# Access-Control-Allow-Origin: http://localhost:5173
+# Access-Control-Allow-Methods: get, post, put, patch, delete, options, head
+# Access-Control-Allow-Headers: Authorization, Content-Type, Accept
+```
+
+**Test from browser console:**
+```javascript
+// Open your frontend in browser, then open console (F12)
+fetch('http://localhost:3000/api/v1/ping')
+  .then(res => res.json())
+  .then(data => console.log('✅ CORS working:', data))
+  .catch(err => console.error('❌ CORS error:', err));
+```
+
+### Step 4.7: CORS Configuration Reference
+
+**Configurable via environment variables:**
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CORS_ORIGINS` | Comma-separated allowed domains | `https://myapp.com,https://mobile.myapp.com` |
+
+**Hardcoded in initializer (config/initializers/cors.rb):**
+
+| Setting | Value | Why Hardcoded? |
+|---------|-------|----------------|
+| `resource` | `/api/*` | API path never changes |
+| `headers` | `Authorization`, `Content-Type`, `Accept`, `X-Requested-With` | Standard headers for JWT auth |
+| `methods` | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD` | Standard REST methods |
+| `expose` | `Authorization`, `X-Total-Count`, `X-Page` | Standard response headers for pagination |
+| `credentials` | `true` | Required for JWT authentication |
+| `max_age` | `86400` (24 hours) | Reasonable cache duration |
+
+**When to make more settings configurable:**
+- Only add environment variables if you **actually need** different values per environment
+- For 95% of apps, only `CORS_ORIGINS` varies
+- Keep it simple unless you have a specific requirement
+
+**Deployment platforms:**
+
+**Heroku:**
+```bash
+# Staging
+heroku config:set CORS_ORIGINS="https://staging.myapp.com" --app myapp-staging
+
+# Production
+heroku config:set CORS_ORIGINS="https://myapp.com,https://www.myapp.com" --app myapp-production
+```
+
+**Railway/Render:**
+Add environment variables in the dashboard UI.
+
+**Docker:**
+```yaml
+# docker-compose.yml
+services:
+  api:
+    environment:
+      - CORS_ORIGINS=https://myapp.com
+```
+
+**Security notes:**
+- ✅ Simple configuration - only origins are environment-specific
+- ✅ Same code runs in all environments (Trunk-Based Development)
+- ✅ Production requires explicit origins (no wildcard `*`)
+- ✅ Validates configuration on startup
+- ✅ Logs CORS configuration for debugging
+- ✅ Secure defaults (credentials enabled for JWT auth)
+
+**Common CORS errors and solutions:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "No 'Access-Control-Allow-Origin' header" | CORS not configured or wrong origin | Add frontend URL to `CORS_ORIGINS` |
+| "Credentials flag is true, but origin is '*'" | Development mode with no `CORS_ORIGINS` set | Set `CORS_ORIGINS` in `.env` or keep wildcard for local dev |
+| "Origin not allowed" | Frontend URL not in `CORS_ORIGINS` | Add your frontend URL to `CORS_ORIGINS` (comma-separated) |
+| "CORS_ORIGINS environment variable is required" | Production without `CORS_ORIGINS` set | Set `CORS_ORIGINS` in hosting platform environment variables |
+
+**Need to add more headers or methods?**
+Edit `config/initializers/cors.rb` directly:
+```ruby
+# Add custom header
+headers: %w[Authorization Content-Type Accept X-Requested-With X-Custom-Header]
+
+# Add custom method
+methods: %i[get post put patch delete options head custom]
+```
+This is rare but supported if needed.
 
 ---
 
