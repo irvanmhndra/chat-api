@@ -29,6 +29,18 @@ Essential guides for setting up and configuring the project:
   - Redis and ActionCable configuration
   - Active Storage setup
 
+### Deployment
+
+Production deployment guides:
+
+- **[Docker Guide](deployment/docker.md)** - Containerized development and deployment
+  - Quick start with docker-compose
+  - Development environment setup
+  - Production Dockerfile optimization
+  - Deployment to Railway, Render, Fly.io, Kamal
+  - Docker commands reference
+  - Troubleshooting and best practices
+
 ### Architecture
 
 High-level design and system architecture:
@@ -101,6 +113,12 @@ In-depth guides for specific tools and libraries:
 ### I want to...
 
 #### Set up the project for the first time
+
+**Option 1: Docker (Quick Start)**
+1. Follow [Docker Guide](deployment/docker.md) quick start
+2. Run `docker-compose up` and you're ready!
+
+**Option 2: Manual Installation**
 1. Start with [Installation Guide](getting-started/installation.md)
 2. Review [Configuration Guide](getting-started/configuration.md)
 3. Check [Project Overview](architecture/overview.md) to understand the architecture

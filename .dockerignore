@@ -43,3 +43,28 @@
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*
+/docker-compose*.yml
+
+# Ignore documentation
+/docs
+/README.md
+/CHANGELOG.md
+/CONTRIBUTING.md
+
+# Ignore test coverage and reports
+/coverage
+/spec/examples.txt
+
+# Ignore node_modules (if using any frontend build tools)
+/node_modules
+
+# Ignore IDE and editor files
+/.vscode
+/.idea
+*.swp
+*.swo
+*.swn
+/.DS_Store
+
+# Ignore swagger generated files (will regenerate)
+/swagger

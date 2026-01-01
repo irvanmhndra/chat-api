@@ -4,7 +4,52 @@ Complete step-by-step guide to set up the Chat API project from scratch. Follow 
 
 ---
 
+## Choose Your Setup Method
+
+You have two options to set up the Chat API:
+
+### Option 1: Docker (Quick Start) 🐳 **Recommended for Quick Setup**
+
+**Pros:**
+- ✅ Get started in minutes
+- ✅ No need to install Ruby, PostgreSQL, Redis locally
+- ✅ Consistent environment across team
+- ✅ Works on any OS (Mac, Linux, Windows)
+
+**Get started:**
+```bash
+# 1. Clone repository
+git clone <your-repo-url>
+cd chat-api
+
+# 2. Start services
+docker-compose up
+
+# 3. Setup database (in another terminal)
+docker-compose exec web rails db:create db:migrate
+
+# Done! Access at http://localhost:3000
+```
+
+**📚 [Complete Docker Guide →](../deployment/docker.md)**
+
+---
+
+### Option 2: Manual Installation (Traditional) 🛠️ **Recommended for Learning**
+
+**Pros:**
+- ✅ Faster performance (especially on Mac)
+- ✅ Better understanding of dependencies
+- ✅ Easier debugging
+- ✅ Native development experience
+
+**Continue below for manual installation steps.**
+
+---
+
 ## Prerequisites - Install Dependencies
+
+**Note:** Skip this section if you're using Docker (Option 1).
 
 ### 1. Install Ruby 3.3+
 
