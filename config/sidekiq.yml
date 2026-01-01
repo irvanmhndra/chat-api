@@ -1,0 +1,13 @@
+# config/sidekiq.yml
+:concurrency: 5
+:queues:
+  - default
+  - mailers
+  - notifications
+  - media_processing
+
+development:
+  :concurrency: 2
+
+production:
+  :concurrency: 10
