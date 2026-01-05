@@ -9,7 +9,7 @@ gem 'puma', '~> 7.1'
 
 # Authentication & Authorization
 gem "jwt"
-gem 'bcrypt', '~> 3.1', '>= 3.1.20'
+gem 'bcrypt', '~> 3.1'
 gem "pundit"
 
 # Redis & Background Jobs
