@@ -5,7 +5,7 @@ ruby "3.4.8"
 # Core
 gem "rails", "~> 8.1.1"
 gem 'pg', '~> 1.6', '>= 1.6.2'
-gem 'puma', '~> 7.1'
+gem 'puma', '~> 7.2'
 
 # Authentication & Authorization
 gem "jwt"
